@@ -13,10 +13,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import tensorflow as tf
 import pandas as pd
 from io import BytesIO
-#هذي الكومنتات حق ملاك بس 
-# ─────────────────────────────────────────
-# Mediapipe
-# ─────────────────────────────────────────
+
 try:
     import mediapipe as mp
     mp_face_mesh = mp.solutions.face_mesh
@@ -29,8 +26,8 @@ try:
     RIGHT_EYE = [33,  160, 158, 133, 153, 144]
 except:
     face_mesh = None
+
 # CSS
-# ─────────────────────────────────────────
 st.markdown("""
 <style>
     .stApp { background-color: #1A0533; }
@@ -77,14 +74,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# المسارات الباث 
-# ─────────────────────────────────────────
-BASE        = r'D:\Dev\datascience-course\final_project2'
-EXCEL_PATH  = r'D:\Dev\datascience-course\final_project2\Students_Images\Students.xlsx'
-REPORT_PATH = r'D:\Dev\datascience-course\final_project2\Students_Images\attendance_report.xlsx'
+# ── Paths (relative, works on any machine) ──────────────────────────────────
+BASE        = os.path.dirname(os.path.abspath(__file__))
+EXCEL_PATH  = os.path.join(BASE, 'Students_Images', 'Students.xlsx')
+REPORT_PATH = os.path.join(BASE, 'Students_Images', 'attendance_report.xlsx')
 
-# من الفاينل بروجكت8 Model
-# ─────────────────────────────────────────
+# Create Students_Images folder if it doesn't exist
+os.makedirs(os.path.join(BASE, 'Students_Images'), exist_ok=True)
+
+# ── Load model ───────────────────────────────────────────────────────────────
 model             = load_model(os.path.join(BASE, 'face_model.keras'))
 feature_extractor = tf.keras.models.Model(
     inputs  = model.input,
@@ -96,8 +94,7 @@ with open(os.path.join(BASE, 'student_features.json')) as f:
 student_features = {name: np.array(feat) for name, feat in raw.items()}
 
 
-# الدوال الي باستخدمهم حق ابني المشروع
-# ─────────────────────────────────────────
+# ── Helper functions ─────────────────────────────────────────────────────────
 def load_students_db():
     if os.path.exists(EXCEL_PATH):
         return pd.read_excel(EXCEL_PATH)
@@ -123,7 +120,6 @@ def identify_face(frame):
         score = cosine_similarity(pred.reshape(1,-1), feat.reshape(1,-1))[0][0]
         if score > best_score:
             best_score, best_name = score, name
-    print(f'Best match: {best_name} | Score: {best_score:.4f}')
     return best_name if best_score >= 0.6 else None
 
 def eye_aspect_ratio(landmarks, eye_points, w, h):
@@ -167,7 +163,6 @@ def send_email(parent_email, student_name, status):
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
             server.login(sender, password)
             server.send_message(msg)
-        print(f'Email sent to {parent_email}')
         return True
     except Exception as e:
         print(f'Email error: {e}')
@@ -183,22 +178,19 @@ def generate_report(logged, drowsiness_log):
         info       = logged.get(name, {'status': 'Absent', 'arrival': '---'})
         drowsiness = drowsiness_log.get(name, '---')
         ws.append([name, date_str, info['arrival'], info['status'], drowsiness])
-    wb.save(REPORT_PATH)
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)
     return buffer
 
 
-# Session State-حق ستريملت
-# ─────────────────────────────────────────
+# ── Session State ────────────────────────────────────────────────────────────
 if 'logged'         not in st.session_state:
     st.session_state.logged         = {}
 if 'drowsiness_log' not in st.session_state:
     st.session_state.drowsiness_log = {}
 
-# Header-حق استريملت 
-# ─────────────────────────────────────────
+# ── Header ───────────────────────────────────────────────────────────────────
 col_img, col_txt = st.columns([1, 4])
 with col_img:
     st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=100)
@@ -214,8 +206,7 @@ st.markdown('---')
 
 tab1, tab2 = st.tabs(['Take Attendance', 'Add New Student'])
 
-# التاب 1 — تسجيل الحضور
-# ─────────────────────────────────────────
+# ── Tab 1 — Take Attendance ──────────────────────────────────────────────────
 with tab1:
 
     st.subheader('Session Settings')
@@ -268,9 +259,6 @@ with tab1:
         cap.release()
         cv2.destroyAllWindows()
 
-       
-        # تسجيل الغائبين وارسال الايميل للجميع
-        # ─────────────────────────────────────────
         db = load_students_db()
         for name in student_features:
             if name not in st.session_state.logged:
@@ -284,10 +272,6 @@ with tab1:
 
         st.success('Session ended!')
 
-
-    
-    # الإحصائيات
-    # ─────────────────────────────────────────
     if st.session_state.logged:
         present = sum(1 for v in st.session_state.logged.values() if v['status'] == 'Present')
         late    = sum(1 for v in st.session_state.logged.values() if v['status'] == 'Late')
@@ -303,9 +287,6 @@ with tab1:
         c4.markdown(f'<div class="stat-card"><div class="stat-number" style="color:#A78BFA">{total}</div><div class="stat-label">Total</div></div>', unsafe_allow_html=True)
         c5.markdown(f'<div class="stat-card"><div class="stat-number" style="color:#FB923C">{sleepy}</div><div class="stat-label">Sleepy</div></div>', unsafe_allow_html=True)
 
-        
-        # اهني جدول الحضور والغياب
-        # ─────────────────────────────────────────
         st.subheader('Attendance Table')
         rows = []
         for n, v in st.session_state.logged.items():
@@ -317,9 +298,6 @@ with tab1:
             })
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-        
-        #  the report + email
-        # ─────────────────────────────────────────
         st.markdown('---')
         col_email, col_download = st.columns(2)
 
@@ -348,8 +326,7 @@ with tab1:
             )
 
 
-# التاب 2 — إضافة طالب جديد
-# ─────────────────────────────────────────
+# ── Tab 2 — Add New Student ──────────────────────────────────────────────────
 with tab2:
     st.subheader('Add New Student')
     name_input         = st.text_input('Student Name',  key='new_name')
