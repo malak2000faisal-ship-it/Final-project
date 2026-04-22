@@ -5,4 +5,4 @@ pillow
 openpyxl
 pandas
 streamlit
-mediapipe==0.10.3
+mediapipe==0.10.5
